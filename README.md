@@ -1,18 +1,17 @@
 # USB Checker (UCT)
 
-A Windows desktop application for USB drive management, built with Python and Tkinter. Provides tools for analyzing, repairing, formatting, backing up, and wiping USB drives with a clean graphical interface.
+A Windows desktop application for USB drive management and troubleshooting, built with Python and Tkinter.
 
 ## Features
-- **Drive Analysis**: View detailed storage information and drive properties
-- **Drive Repair**: Fix file system errors using Windows chkdsk
-- **Format Drives**: Quick/Full format with multiple file system options
-- **Data Backup**: Backup USB contents with directory structure preservation
-- **Data Wiping**: Securely erase drive contents
-- **Auto Detection**: Automatically identifies USB drives
-- **Logging**: Comprehensive operation logging with easy access
+- **Drive Analysis**: Shows drive information including capacity, used/free space, file system, and label
+- **Drive Repair**: Runs chkdsk to fix file system errors (requires admin rights)
+- **Data Backup**: Backs up USB drive contents to a selected folder
+- **Drive Detection**: Automatically detects and lists USB drives
+- **Real-time Output**: Shows operation progress in a scrollable window
+- **Logging**: Saves all operations to usb_checker.log with auto-rotation
 
 ## Requirements
-- Windows OS
+- Windows
 - Python 3.x
 - psutil library
 
