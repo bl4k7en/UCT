@@ -43,6 +43,11 @@
 - Visualizes the progress of operations like repair, benchmark, and backup.
 - Provides a clear indication of how much of the task is completed.
 
+### **Log Management**
+- Logs all operations to a file for troubleshooting.
+- Includes an "Open Log File" button for easy access to logs.
+- Automatically manages log file size (max 10 MB).
+
 ---
 
 ## **How It Works**
@@ -60,41 +65,36 @@
 
 ---
 
+## **Screenshots**
+
+<p align="center">
+  <h3>Main Interface</h3>
+  <img src="https://storage.ko-fi.com/cdn/useruploads/display/2f90d7b9-4849-429a-8898-828f91d86b3e_uct.png" alt="USB Checker (UCT) Main Interface" width="600"/>
+</p>
+
+<p align="center">
+  <h3>Drive Analysis</h3>
+  <img src="https://storage.ko-fi.com/cdn/useruploads/display/87c158d4-058b-4fa1-b82c-9cd2bf91234b_python3.12_1k7dngpq9i.png" alt="USB Checker Drive Analysis" width="600"/>
+</p>
+
+<p align="center">
+  <h3>Benchmark Results</h3>
+  <img src="https://storage.ko-fi.com/cdn/useruploads/display/425d75bc-b1c4-4759-8a16-e38cd586b33a_python3.12_q1cooqcodo.png" alt="USB Checker Benchmark Results" width="600"/>
+</p>
+
+---
+
 ## **System Requirements**
 
 - **Operating System**: Windows (due to the use of `chkdsk` and `diskpart`).
 - **Python Version**: Python 3.x.
-- **Libraries**: `tkinter`, `psutil`, `shutil`, `subprocess`, `threading`, `webbrowser`, `ctypes`, `logging`.
+- **Required Libraries**: `tkinter`, `psutil`, `shutil`, `subprocess`, `threading`, `webbrowser`, `ctypes`, `logging`.
 
 ---
 
-## **Why Use USB Checker (UCT)?**
+## **Installation**
 
-- **User-Friendly Interface**: Simple and intuitive design for easy navigation.
-- **Comprehensive Tools**: Combines multiple USB management features in one application.
-- **Real-Time Feedback**: Keeps users informed about the status of operations.
-- **Open Source**: Freely available on GitHub for customization and improvement.
-
----
-
-## **Screenshots**
-
-<p align="center">
-  <img src="https://storage.ko-fi.com/cdn/useruploads/display/2f90d7b9-4849-429a-8898-828f91d86b3e_uct.png" alt="USB Checker (UCT) Screenshot"/>
-</p>
-
----
-
-## **License**
-
-The tool is open-source and released under the **BSD-3-Clause License**.
-
----
-
-## **Support Me**
-
-<p align="center">
-  <img src="https://user-images.githubusercontent.com/74038190/213866269-5d00981c-7c98-46d7-8a8e-16f462f15227.gif" width="80" height="80"/> 
-  <a href="https://ko-fi.com/pxelbrei">Support me on Ko-fi</a> 
-  <img src="https://user-images.githubusercontent.com/74038190/213866269-5d00981c-7c98-46d7-8a8e-16f462f15227.gif" width="80" height="80"/>
-</p>
+1. **Clone the repository**:
+   ```bash
+   git clone https://github.com/pxelbrei/UCT.git
+   cd UCT
