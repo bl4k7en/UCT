@@ -3,9 +3,14 @@
 A Windows desktop application for USB drive management and troubleshooting, built with Python and Tkinter.
 
 <p align="center">
+<table><tr>
+<td align="center">
 <img src="https://storage.ko-fi.com/cdn/useruploads/display/87c158d4-058b-4fa1-b82c-9cd2bf91234b_python3.12_1k7dngpq9i.png" alt="Example 1" />
-&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;
+</td>
+<td align="center">
 <img src="https://storage.ko-fi.com/cdn/useruploads/display/425d75bc-b1c4-4759-8a16-e38cd586b33a_python3.12_q1cooqcodo.png" alt="Example 2" />
+</td>
+</tr></table>
 </p>
 
 ## Features
