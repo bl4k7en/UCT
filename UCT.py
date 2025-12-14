@@ -9,6 +9,8 @@ import threading
 import webbrowser
 from queue import Queue, Empty
 from pathlib import Path
+from datetime import datetime
+import zipfile
 
 import psutil
 import tkinter as tk
@@ -123,25 +125,41 @@ class USBCheckerApp:
         button_frame = tk.Frame(self.root, bg="#2e2e2e")
         button_frame.pack(pady=5)
         
-        buttons = [
-            ("Analyze", self.analyze_usb, "Analyze the selected USB drive for storage and speed"),
-            ("Repair", self.run_repair_in_thread, "Repair the selected USB drive"),
-            ("Benchmark", self.run_benchmark_in_thread, "Measure the read/write speed of the USB drive"),
-            ("Backup", self.run_backup_in_thread, "Backup data from the USB drive")
-        ]
+        # Analyze button
+        analyze_btn = ttk.Button(button_frame, text="Analyze", command=self.run_analyze_in_thread, style="TButton")
+        analyze_btn.pack(side=tk.LEFT, padx=5)
+        self.create_tooltip(analyze_btn, "Analyze the selected USB drive for storage and speed")
         
-        for text, command, tooltip in buttons:
-            btn = ttk.Button(button_frame, text=text, command=command, style="TButton")
-            btn.pack(side=tk.LEFT, padx=5)
-            self.create_tooltip(btn, tooltip)
+        # Repair dropdown menu
+        repair_menu_btn = ttk.Menubutton(button_frame, text="Repair ▼", style="TButton")
+        repair_menu_btn.pack(side=tk.LEFT, padx=5)
+        
+        repair_menu = tk.Menu(repair_menu_btn, tearoff=0, bg="#444", fg="white", activebackground="#666", activeforeground="white")
+        repair_menu_btn.config(menu=repair_menu)
+        
+        repair_menu.add_command(
+            label="Quick Repair",
+            command=lambda: self.run_repair_in_thread(quick=True)
+        )
+        repair_menu.add_command(
+            label="Deep Repair",
+            command=lambda: self.run_repair_in_thread(quick=False)
+        )
+        
+        self.create_tooltip(repair_menu_btn, "Repair the selected USB drive\nQuick: Fast file system fix (1-5 min)\nDeep: Full scan with bad sectors (hours)")
+        
+        # Backup button
+        backup_btn = ttk.Button(button_frame, text="Backup", command=self.run_backup_in_thread, style="TButton")
+        backup_btn.pack(side=tk.LEFT, padx=5)
+        self.create_tooltip(backup_btn, "Create a ZIP backup of the USB drive")
         
         # Output window
         self.result_display = ScrolledText(
             self.root,
-            height=10,
+            height=8,
             bg="#1e1e1e",
             fg="lime",
-            font=("Consolas", 9),
+            font=("Consolas", 8),
             state="disabled",
             wrap=tk.WORD
         )
@@ -181,25 +199,33 @@ class USBCheckerApp:
         window.geometry(f"{width}x{height}+{x}+{y}")
     
     def create_tooltip(self, widget, text):
-        """Create a tooltip for a widget."""
-        tooltip = tk.Label(
-            self.root,
+        """Create a tooltip for a widget that stays on top."""
+        tooltip = tk.Toplevel(self.root)
+        tooltip.withdraw()
+        tooltip.wm_overrideredirect(True)
+        tooltip.wm_attributes("-topmost", True)
+        
+        label = tk.Label(
+            tooltip,
             text=text,
             bg="#ffeb3b",
             fg="black",
             relief="solid",
             borderwidth=1,
-            font=("Arial", 8)
+            font=("Arial", 8),
+            padx=5,
+            pady=2
         )
-        tooltip.pack_forget()
+        label.pack()
         
         def enter(event):
-            x = widget.winfo_rootx() - self.root.winfo_rootx()
-            y = widget.winfo_rooty() - self.root.winfo_rooty() + widget.winfo_height()
-            tooltip.place(x=x, y=y)
+            x = widget.winfo_rootx() + 10
+            y = widget.winfo_rooty() + widget.winfo_height() + 5
+            tooltip.wm_geometry(f"+{x}+{y}")
+            tooltip.deiconify()
         
         def leave(event):
-            tooltip.place_forget()
+            tooltip.withdraw()
         
         widget.bind("<Enter>", enter)
         widget.bind("<Leave>", leave)
@@ -326,19 +352,50 @@ class USBCheckerApp:
         
         return drive_letter
     
-    def analyze_usb(self):
-        """Analyze the selected USB drive."""
-        drive = self.validate_drive()
-        if not drive:
-            self.process_queue.put("No drive selected.\n")
+    def run_analyze_in_thread(self):
+        """Run the USB analysis in a separate thread."""
+        if self.is_running:
+            self.process_queue.put("Another operation is already running.\n")
             return
         
+        drive = self.validate_drive()
+        if not drive:
+            return
+        
+        # Check if drive has enough space for benchmark
+        try:
+            usage = shutil.disk_usage(drive)
+            if usage.free < self.BENCHMARK_SIZE * 1.5:  # 150 MB free space required
+                response = messagebox.askyesno(
+                    "Insufficient Space for Speed Test",
+                    "Not enough free space for speed benchmark.\n\n"
+                    "Continue with storage analysis only?"
+                )
+                if not response:
+                    return
+                # Run only storage analysis
+                self.analyze_usb(drive)
+                return
+        except Exception as e:
+            messagebox.showerror("Error", f"Failed to check drive space: {e}")
+            return
+        
+        self.is_running = True
+        self.progress["value"] = 0
+        thread = threading.Thread(target=self.analyze_usb_full, args=(drive,), daemon=True)
+        thread.start()
+    
+    def analyze_usb(self, drive):
+        """Analyze storage information of the selected USB drive."""
         try:
             usage = shutil.disk_usage(drive)
             partitions = psutil.disk_partitions()
             drive_info = next((p for p in partitions if p.device == drive), None)
             
-            message = f"Drive: {drive}\n"
+            message = f"{'='*50}\n"
+            message += f"STORAGE ANALYSIS\n"
+            message += f"{'='*50}\n"
+            message += f"Drive: {drive}\n"
             if drive_info:
                 message += f"File System: {drive_info.fstype}\n"
             
@@ -347,124 +404,65 @@ class USBCheckerApp:
                 f"Used: {usage.used / (1024**3):.2f} GB\n"
                 f"Free: {usage.free / (1024**3):.2f} GB\n"
                 f"Usage: {(usage.used / usage.total * 100):.1f}%\n"
+                f"{'='*50}\n"
             )
             
             self.process_queue.put(message)
-            logging.info(f"Analyzed drive: {drive}")
+            
+            # Detailed logging
+            logging.info(f"Storage Analysis - Drive: {drive}")
+            if drive_info:
+                logging.info(f"File System: {drive_info.fstype}")
+            logging.info(f"Total: {usage.total / (1024**3):.2f} GB")
+            logging.info(f"Used: {usage.used / (1024**3):.2f} GB")
+            logging.info(f"Free: {usage.free / (1024**3):.2f} GB")
+            logging.info(f"Usage: {(usage.used / usage.total * 100):.1f}%")
         except Exception as e:
             self.process_queue.put(f"Error analyzing drive: {e}\n")
-            logging.error(f"Error analyzing drive: {e}")
+            logging.error(f"Error analyzing drive {drive}: {e}")
     
-    def run_repair_in_thread(self):
-        """Run the USB repair process in a separate thread."""
-        if self.is_running:
-            self.process_queue.put("Another operation is already running.\n")
-            return
-        
-        drive = self.validate_drive()
-        if not drive:
-            return
-        
-        # Confirm action
-        response = messagebox.askyesno(
-            "Confirm Repair",
-            f"Do you want to repair drive {drive}?\nThis may take several minutes."
-        )
-        if not response:
-            return
-        
-        self.is_running = True
-        self.progress["value"] = 0
-        thread = threading.Thread(target=self.repair_usb, args=(drive,), daemon=True)
-        thread.start()
-    
-    def repair_usb(self, drive):
-        """Repair the selected USB drive using chkdsk (Windows only)."""
-        if sys.platform != "win32":
-            self.process_queue.put("Repair function is only available on Windows.\n")
-            self.is_running = False
-            return
-        
-        try:
-            # Check for admin privileges
-            if not ctypes.windll.shell32.IsUserAnAdmin():
-                self.process_queue.put("Error: Administrator privileges required for repair.\n")
-                return
-            
-            drive_letter = drive.rstrip("\\").rstrip("/")[0]
-            if not drive_letter.isalpha():
-                self.process_queue.put(f"Invalid drive letter: {drive_letter}\n")
-                return
-            
-            # Run chkdsk
-            chkdsk_path = os.path.join(os.getenv("SystemRoot", "C:\\Windows"), "System32", "chkdsk.exe")
-            self.process_queue.put(f"Running chkdsk on {drive_letter}:...\n")
-            
-            process = subprocess.Popen(
-                [chkdsk_path, f"{drive_letter}:", "/f"],
-                stdout=subprocess.PIPE,
-                stderr=subprocess.PIPE,
-                text=True,
-                creationflags=subprocess.CREATE_NO_WINDOW
-            )
-            
-            # Read output
-            for line in iter(process.stdout.readline, ""):
-                if line.strip():
-                    self.process_queue.put(line)
-                    if self.progress["value"] < 90:
-                        self.progress["value"] += 5
-            
-            process.wait()
-            
-            if process.returncode == 0:
-                self.process_queue.put("\nRepair completed successfully.\n")
-            else:
-                stderr = process.stderr.read()
-                self.process_queue.put(f"\nRepair completed with warnings.\n{stderr}\n")
-            
-            self.progress["value"] = 100
-            logging.info(f"Repaired drive: {drive}")
-        except Exception as e:
-            self.process_queue.put(f"Error during repair: {e}\n")
-            logging.error(f"Error during repair: {e}")
-        finally:
-            self.is_running = False
-    
-    def run_benchmark_in_thread(self):
-        """Run the USB benchmark process in a separate thread."""
-        if self.is_running:
-            self.process_queue.put("Another operation is already running.\n")
-            return
-        
-        drive = self.validate_drive()
-        if not drive:
-            return
-        
-        # Check if drive has enough space
-        try:
-            usage = shutil.disk_usage(drive)
-            if usage.free < self.BENCHMARK_SIZE * 1.5:  # 150 MB free space required
-                messagebox.showwarning(
-                    "Insufficient Space",
-                    "Not enough free space on the drive for benchmark test."
-                )
-                return
-        except Exception as e:
-            messagebox.showerror("Error", f"Failed to check drive space: {e}")
-            return
-        
-        self.is_running = True
-        self.progress["value"] = 0
-        self.process_queue.put("Starting benchmark... This may take a few moments.\n")
-        thread = threading.Thread(target=self.benchmark_usb, args=(drive,), daemon=True)
-        thread.start()
-    
-    def benchmark_usb(self, drive):
-        """Benchmark the selected USB drive."""
+    def analyze_usb_full(self, drive):
+        """Perform complete analysis including storage and speed benchmark."""
         test_file = None
         try:
-            self.process_queue.put("Running write test...\n")
+            # First: Storage Analysis
+            usage = shutil.disk_usage(drive)
+            partitions = psutil.disk_partitions()
+            drive_info = next((p for p in partitions if p.device == drive), None)
+            
+            message = f"{'='*50}\n"
+            message += f"USB DRIVE ANALYSIS\n"
+            message += f"{'='*50}\n"
+            message += f"Drive: {drive}\n"
+            if drive_info:
+                message += f"File System: {drive_info.fstype}\n"
+            
+            message += (
+                f"Total: {usage.total / (1024**3):.2f} GB\n"
+                f"Used: {usage.used / (1024**3):.2f} GB\n"
+                f"Free: {usage.free / (1024**3):.2f} GB\n"
+                f"Usage: {(usage.used / usage.total * 100):.1f}%\n"
+                f"{'='*50}\n"
+            )
+            
+            self.process_queue.put(message)
+            
+            # Log storage analysis
+            logging.info(f"Full Analysis Started - Drive: {drive}")
+            if drive_info:
+                logging.info(f"File System: {drive_info.fstype}")
+            logging.info(f"Total: {usage.total / (1024**3):.2f} GB")
+            logging.info(f"Used: {usage.used / (1024**3):.2f} GB")
+            logging.info(f"Free: {usage.free / (1024**3):.2f} GB")
+            logging.info(f"Usage: {(usage.used / usage.total * 100):.1f}%")
+            
+            self.progress["value"] = 20
+            
+            # Second: Speed Benchmark
+            self.process_queue.put("Running speed benchmark...\n")
+            self.process_queue.put("Testing write speed...\n")
+            logging.info("Starting speed benchmark - Write test")
+            
             test_file = os.path.join(drive, "uct_benchmark_test.bin")
             
             # Write test
@@ -474,8 +472,11 @@ class USBCheckerApp:
             write_time = time.time() - start_time
             write_speed = (self.BENCHMARK_SIZE / (1024 * 1024)) / write_time
             
-            self.progress["value"] = 50
-            self.process_queue.put("Running read test...\n")
+            logging.info(f"Write test completed - Speed: {write_speed:.2f} MB/s, Time: {write_time:.2f}s")
+            
+            self.progress["value"] = 60
+            self.process_queue.put("Testing read speed...\n")
+            logging.info("Starting read test")
             
             # Read test
             start_time = time.time()
@@ -485,23 +486,161 @@ class USBCheckerApp:
             read_time = time.time() - start_time
             read_speed = (self.BENCHMARK_SIZE / (1024 * 1024)) / read_time
             
+            logging.info(f"Read test completed - Speed: {read_speed:.2f} MB/s, Time: {read_time:.2f}s")
+            
             # Results
-            self.process_queue.put(f"\nBenchmark Results:\n")
+            self.process_queue.put(f"\nSPEED BENCHMARK RESULTS\n")
+            self.process_queue.put(f"{'='*50}\n")
             self.process_queue.put(f"Write Speed: {write_speed:.2f} MB/s\n")
             self.process_queue.put(f"Read Speed: {read_speed:.2f} MB/s\n")
             
+            # Performance rating
+            avg_speed = (write_speed + read_speed) / 2
+            if avg_speed > 100:
+                rating = "Excellent (USB 3.0+)"
+            elif avg_speed > 30:
+                rating = "Good (USB 3.0)"
+            elif avg_speed > 10:
+                rating = "Average (USB 2.0)"
+            else:
+                rating = "Slow (USB 2.0 or older)"
+            
+            self.process_queue.put(f"Performance: {rating}\n")
+            self.process_queue.put(f"{'='*50}\n")
+            
+            logging.info(f"Performance Rating: {rating}")
+            logging.info(f"Average Speed: {avg_speed:.2f} MB/s")
+            logging.info(f"Analysis completed successfully for {drive}")
+            
             self.progress["value"] = 100
-            logging.info(f"Benchmarked {drive} - Write: {write_speed:.2f} MB/s, Read: {read_speed:.2f} MB/s")
         except Exception as e:
-            self.process_queue.put(f"Error during benchmark: {e}\n")
-            logging.error(f"Error during benchmark: {e}")
+            self.process_queue.put(f"Error during analysis: {e}\n")
+            logging.error(f"Error during full analysis of {drive}: {e}")
         finally:
             # Clean up test file
             if test_file and os.path.exists(test_file):
                 try:
                     os.remove(test_file)
+                    logging.info("Benchmark test file removed")
                 except Exception as e:
                     logging.warning(f"Failed to remove test file: {e}")
+            self.is_running = False
+    
+    def run_repair_in_thread(self, quick=True):
+        """Run the USB repair process in a separate thread."""
+        if self.is_running:
+            self.process_queue.put("Another operation is already running.\n")
+            return
+        
+        drive = self.validate_drive()
+        if not drive:
+            return
+        
+        mode_text = "Quick Repair" if quick else "Deep Repair"
+        duration_text = "1-5 minutes" if quick else "several minutes to hours"
+        
+        # Confirm action
+        confirm_msg = f"Start {mode_text} on drive {drive}?\n\nEstimated time: {duration_text}"
+        if not quick:
+            confirm_msg += "\n\nNote: Deep Repair scans every sector and can take very long!"
+        
+        response = messagebox.askyesno(f"Confirm {mode_text}", confirm_msg)
+        if not response:
+            return
+        
+        self.is_running = True
+        self.progress["value"] = 0
+        thread = threading.Thread(target=self.repair_usb, args=(drive, quick), daemon=True)
+        thread.start()
+    
+    def repair_usb(self, drive, quick=True):
+        """Repair the selected USB drive using chkdsk (Windows only)."""
+        if sys.platform != "win32":
+            self.process_queue.put("Repair function is only available on Windows.\n")
+            logging.warning("Repair attempted on non-Windows platform")
+            self.is_running = False
+            return
+        
+        try:
+            # Check for admin privileges
+            if not ctypes.windll.shell32.IsUserAnAdmin():
+                self.process_queue.put("Error: Administrator privileges required for repair.\n")
+                logging.error("Repair failed - No administrator privileges")
+                return
+            
+            drive_letter = drive.rstrip("\\").rstrip("/")[0]
+            if not drive_letter.isalpha():
+                self.process_queue.put(f"Invalid drive letter: {drive_letter}\n")
+                logging.error(f"Invalid drive letter: {drive_letter}")
+                return
+            
+            # Determine repair mode
+            mode_text = "Quick Repair" if quick else "Deep Repair"
+            parameters = [f"{drive_letter}:", "/f"]
+            
+            if not quick:
+                parameters.append("/r")  # Add /r for bad sector scan
+            
+            # Run chkdsk
+            chkdsk_path = os.path.join(os.getenv("SystemRoot", "C:\\Windows"), "System32", "chkdsk.exe")
+            self.process_queue.put(f"{'='*50}\n")
+            self.process_queue.put(f"Starting {mode_text} on {drive_letter}:\n")
+            self.process_queue.put(f"{'='*50}\n")
+            
+            logging.info(f"{mode_text} started on {drive_letter}:")
+            logging.info(f"Command: {chkdsk_path} {' '.join(parameters)}")
+            
+            if not quick:
+                self.process_queue.put("WARNING: Deep Repair may take several hours!\n")
+                self.process_queue.put("The drive will be scanned sector by sector.\n\n")
+                logging.warning("Deep Repair initiated - This may take several hours")
+            
+            process = subprocess.Popen(
+                [chkdsk_path] + parameters,
+                stdout=subprocess.PIPE,
+                stderr=subprocess.PIPE,
+                text=True,
+                creationflags=subprocess.CREATE_NO_WINDOW
+            )
+            
+            # Read output
+            line_count = 0
+            for line in iter(process.stdout.readline, ""):
+                if line.strip():
+                    self.process_queue.put(line)
+                    line_count += 1
+                    
+                    # Update progress (more conservative for deep repair)
+                    if quick:
+                        if self.progress["value"] < 90:
+                            self.progress["value"] += 5
+                    else:
+                        # For deep repair, progress more slowly
+                        if line_count % 10 == 0 and self.progress["value"] < 95:
+                            self.progress["value"] += 1
+            
+            process.wait()
+            
+            if process.returncode == 0:
+                self.process_queue.put(f"\n{'='*50}\n")
+                self.process_queue.put(f"{mode_text} completed successfully!\n")
+                self.process_queue.put(f"{'='*50}\n")
+                logging.info(f"{mode_text} completed successfully on {drive_letter}:")
+            else:
+                stderr = process.stderr.read()
+                self.process_queue.put(f"\n{'='*50}\n")
+                self.process_queue.put(f"{mode_text} completed with warnings.\n")
+                if stderr:
+                    self.process_queue.put(f"{stderr}\n")
+                    logging.warning(f"{mode_text} completed with warnings: {stderr}")
+                self.process_queue.put(f"{'='*50}\n")
+                logging.warning(f"{mode_text} completed with return code: {process.returncode}")
+            
+            self.progress["value"] = 100
+        except Exception as e:
+            self.process_queue.put(f"Error during repair: {e}\n")
+            logging.error(f"Error during {mode_text} on {drive}: {e}")
+        finally:
             self.is_running = False
     
     def run_backup_in_thread(self):
@@ -514,70 +653,143 @@ class USBCheckerApp:
         if not drive:
             return
         
-        backup_folder = filedialog.askdirectory(title="Select Backup Destination Folder")
-        if not backup_folder:
+        # Ask user to choose backup location and filename
+        default_name = f"USB_Backup_{datetime.now().strftime('%Y%m%d_%H%M%S')}.zip"
+        backup_file = filedialog.asksaveasfilename(
+            title="Save Backup As",
+            defaultextension=".zip",
+            filetypes=[("ZIP Archive", "*.zip"), ("All Files", "*.*")],
+            initialfile=default_name
+        )
+        
+        if not backup_file:
+            return
+        
+        # Confirm action
+        try:
+            usage = shutil.disk_usage(drive)
+            size_gb = usage.used / (1024**3)
+            response = messagebox.askyesno(
+                "Confirm Backup",
+                f"Create a ZIP backup of {drive}?\n\n"
+                f"Used space: {size_gb:.2f} GB\n"
+                f"This may take several minutes.\n\n"
+                f"Save to: {os.path.basename(backup_file)}"
+            )
+            if not response:
+                return
+        except Exception as e:
+            messagebox.showerror("Error", f"Failed to check drive size: {e}")
             return
         
         self.is_running = True
         self.progress["value"] = 0
-        thread = threading.Thread(target=self.backup_usb, args=(drive, backup_folder), daemon=True)
+        thread = threading.Thread(target=self.backup_usb, args=(drive, backup_file), daemon=True)
         thread.start()
     
-    def backup_usb(self, drive, backup_folder):
-        """Backup data from the selected USB drive."""
+    def backup_usb(self, drive, backup_file):
+        """Create a ZIP backup of the entire USB drive."""
         try:
-            self.process_queue.put("Starting backup...\n")
+            self.process_queue.put(f"Creating ZIP backup: {os.path.basename(backup_file)}\n")
             
             # Count total files for progress tracking
-            total_files = sum(len(files) for _, _, files in os.walk(drive))
-            if total_files == 0:
-                self.process_queue.put("No files found to backup.\n")
-                return
+            total_files = 0
+            total_size = 0
+            files_to_backup = []
             
-            copied_files = 0
+            self.process_queue.put("Scanning drive...\n")
             
-            # Copy files
             for root, dirs, files in os.walk(drive):
                 # Skip system directories
                 dirs[:] = [d for d in dirs if not d.startswith('$') and d != 'System Volume Information']
                 
-                relative_path = os.path.relpath(root, drive)
-                dest_path = os.path.join(backup_folder, relative_path)
-                os.makedirs(dest_path, exist_ok=True)
-                
                 for file in files:
                     try:
-                        src_file = os.path.join(root, file)
-                        dest_file = os.path.join(dest_path, file)
-                        shutil.copy2(src_file, dest_file)
-                        copied_files += 1
-                        
-                        # Update progress
-                        progress = int((copied_files / total_files) * 100)
-                        self.progress["value"] = progress
-                        
-                        if copied_files % 10 == 0:  # Update every 10 files
-                            self.process_queue.put(f"Copied {copied_files}/{total_files} files...\n")
+                        file_path = os.path.join(root, file)
+                        file_size = os.path.getsize(file_path)
+                        files_to_backup.append((file_path, file_size))
+                        total_files += 1
+                        total_size += file_size
                     except Exception as e:
-                        logging.warning(f"Failed to copy {src_file}: {e}")
+                        logging.warning(f"Cannot access file {file_path}: {e}")
                         continue
             
-            self.process_queue.put(f"\nBackup completed: {copied_files} files copied.\n")
+            if total_files == 0:
+                self.process_queue.put("No files found to backup.\n")
+                return
+            
+            self.process_queue.put(f"Found {total_files} files ({total_size / (1024**3):.2f} GB)\n")
+            self.process_queue.put("Creating ZIP archive...\n")
+            
+            # Create ZIP file
+            processed_size = 0
+            processed_files = 0
+            
+            with zipfile.ZipFile(backup_file, 'w', zipfile.ZIP_DEFLATED, compresslevel=6) as zipf:
+                for file_path, file_size in files_to_backup:
+                    try:
+                        # Get relative path for archive
+                        arcname = os.path.relpath(file_path, drive)
+                        zipf.write(file_path, arcname)
+                        
+                        processed_files += 1
+                        processed_size += file_size
+                        
+                        # Update progress based on size processed
+                        progress = int((processed_size / total_size) * 100)
+                        self.progress["value"] = min(progress, 99)
+                        
+                        if processed_files % 50 == 0:  # Update every 50 files
+                            self.process_queue.put(
+                                f"Progress: {processed_files}/{total_files} files "
+                                f"({processed_size / (1024**3):.2f} GB)\n"
+                            )
+                    except Exception as e:
+                        logging.warning(f"Failed to add {file_path} to ZIP: {e}")
+                        continue
+            
+            # Get final ZIP size
+            zip_size = os.path.getsize(backup_file)
+            compression_ratio = (1 - zip_size / total_size) * 100 if total_size > 0 else 0
+            
+            self.process_queue.put(f"\n{'='*50}\n")
+            self.process_queue.put(f"Backup completed successfully!\n")
+            self.process_queue.put(f"Files backed up: {processed_files}\n")
+            self.process_queue.put(f"Original size: {total_size / (1024**3):.2f} GB\n")
+            self.process_queue.put(f"ZIP size: {zip_size / (1024**3):.2f} GB\n")
+            self.process_queue.put(f"Compression: {compression_ratio:.1f}%\n")
+            self.process_queue.put(f"Saved to: {backup_file}\n")
+            self.process_queue.put(f"{'='*50}\n")
+            
             self.progress["value"] = 100
-            logging.info(f"Backed up {drive} to {backup_folder} - {copied_files} files")
-            messagebox.showinfo("Backup Complete", f"Successfully backed up {copied_files} files.")
+            logging.info(f"Backed up {drive} to {backup_file} - {processed_files} files, {zip_size / (1024**3):.2f} GB")
+            
+            messagebox.showinfo(
+                "Backup Complete",
+                f"Successfully backed up {processed_files} files.\n\n"
+                f"ZIP size: {zip_size / (1024**3):.2f} GB\n"
+                f"Compression: {compression_ratio:.1f}%"
+            )
         except Exception as e:
             self.process_queue.put(f"Error during backup: {e}\n")
             logging.error(f"Error during backup: {e}")
+            messagebox.showerror("Backup Failed", f"An error occurred during backup:\n{e}")
         finally:
             self.is_running = False
     
     def update_result_display(self, text):
-        """Update the result display with new text."""
+        """Update the result display with new text and log it."""
         self.result_display.config(state="normal")
         self.result_display.insert(tk.END, text)
         self.result_display.see(tk.END)
         self.result_display.config(state="disabled")
+        
+        # Also log to file (remove empty lines and format)
+        if text.strip():
+            # Remove ANSI codes and excessive newlines
+            clean_text = text.strip()
+            if clean_text and clean_text != "="*50:
+                logging.info(clean_text)
 
 
 def check_admin_privileges():
