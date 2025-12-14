@@ -1,64 +1,72 @@
 # USB Checker (UCT)
 
 <p align="center">
-  <img src="https://storage.ko-fi.com/cdn/useruploads/display/2f90d7b9-4849-429a-8898-828f91d86b3e_uct.png" alt="USB Checker (UCT) Screenshot" width="600"/>
+  <img src="https://storage.ko-fi.com/cdn/useruploads/display/2f90d7b9-4849-429a-8898-828f91d86b3e_uct.png" alt="USB Checker (UCT) Main Interface" width="600"/>
 </p>
 
 ## 📋 Overview
 
-USB Checker (UCT) is a Windows desktop application built with Python and Tkinter for comprehensive USB drive management. The tool provides an intuitive interface to analyze, repair, benchmark, and backup USB drives with real-time feedback.
+USB Checker (UCT) is a comprehensive Windows desktop application for USB drive management, troubleshooting, and data operations. Built with Python and Tkinter, it provides an all-in-one solution for USB drive maintenance with a clean, user-friendly interface.
 
 ## ✨ Features
 
-### 🔍 Drive Analysis
-- Displays detailed information about selected USB drives
-- Shows total, used, and free storage space in GB
-- Displays file system type and drive label
-- Automatic USB drive detection with refresh capability
+### 🔍 **Drive Information & Analysis**
+- **Detailed Drive Information**: Shows drive letter, file system type, and volume label
+- **Storage Analysis**: Displays total, used, and free space in gigabytes
+- **Smart Detection**: Automatically identifies and lists only USB/removable drives
+- **Real-time Refresh**: Update drive list with one click
 
-### 🔧 Drive Repair
-- Executes Windows `chkdsk` utility to fix file system errors
-- Requires and automatically requests administrator privileges
-- Real-time progress updates during repair process
-- Logs all repair activities for troubleshooting
+### 🛠️ **Drive Maintenance & Repair**
+- **File System Repair**: Executes Windows `chkdsk` utility to fix errors
+- **Automatic Admin Elevation**: Requests administrator privileges when needed
+- **Progress Monitoring**: Real-time updates during repair operations
+- **Safe Operation**: Validates drives before performing repairs
 
-### 📊 Benchmark Testing
-- Performs 100MB read/write speed tests
-- Measures and displays both read and write speeds in MB/s
-- Automatic cleanup of test files after benchmarking
-- Progress visualization during testing
+### 📁 **File Management Operations**
+- **Quick Format**: Fast format option for USB drives (FAT32/NTFS)
+- **Full Format**: Complete format with sector checking
+- **File System Selection**: Choose between NTFS, FAT32, or exFAT formats
+- **Secure Format**: Optional quick format bypass for thorough cleaning
 
-### 💾 Data Backup
-- Full directory structure preservation during backup
-- Interactive folder selection for backup destination
-- Progress tracking during backup operations
-- Safe file copying with metadata preservation
+### 💾 **Advanced Data Operations**
+- **Data Backup**: Complete backup of USB drive contents with directory structure preservation
+- **Data Wiping**: Secure erase functionality for sensitive data
+- **Progress Tracking**: Visual progress bar for all operations
+- **Error Handling**: Comprehensive error checking and user feedback
 
-### 📝 Log Management
-- Comprehensive logging to `usb_checker.log` file
-- Automatic log file rotation (max 10MB size)
-- One-click access to log file via "Open Log File" button
-- Timestamped operations for debugging
+### 📝 **System & Logging**
+- **Comprehensive Logging**: All operations logged to `usb_checker.log`
+- **Log Management**: Automatic log rotation (10MB max size)
+- **Easy Access**: One-click log file opening
+- **Real-time Output**: Scrollable output window showing operation progress
 
-## 🖥️ Interface
+## 🖥️ User Interface
 
-### Main Window Components:
-- **Drive Selection**: Dropdown with auto-detected USB drives showing drive letter, label, and file system
-- **Action Buttons**: Analyze, Repair, Benchmark, Backup
-- **Refresh Button**: Updates available USB drive list
-- **Output Display**: Real-time scrollable text area showing operation results
-- **Progress Bar**: Visual progress indicator for long-running operations
-- **GitHub Link**: Direct link to project repository
+### Interface Components:
+- **Drive Selection Dropdown**: Shows detected USB drives with format: `DriveLetter - Label (FileSystem)`
+- **Action Buttons**: 
+  - Analyze: Get drive information
+  - Repair: Fix file system errors
+  - Format: Format the drive
+  - Backup: Backup drive contents
+  - Wipe: Securely erase data
+- **Control Buttons**:
+  - Refresh: Update drive list
+  - Open Log File: View operation logs
+- **Output Display**: Real-time operation feedback
+- **Progress Bar**: Visual operation progress
+- **GitHub Link**: Direct link to source repository
 
-## 🚀 Installation
+## 🚀 Installation & Setup
 
-### Prerequisites:
-- Windows operating system
-- Python 3.x installed
-- Administrator privileges (for repair functionality)
+### Requirements:
+- **Operating System**: Windows 10/11
+- **Python**: Version 3.6 or higher
+- **Privileges**: Administrator rights for full functionality
 
-### Steps:
-1. Clone the repository:
-   ```bash
-   git clone https://github.com/bl4k7en/UCT.git
-   cd UCT
+### Installation Steps:
+
+1. **Clone the repository**:
+```bash
+git clone https://github.com/bl4k7en/UCT.git
+cd UCT
